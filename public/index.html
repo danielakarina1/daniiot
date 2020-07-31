@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HomeControl</title>
+    <script>
+      /* invoca a registraServiceWorker instalar la aplicación en el caché del
+       * navegador. No se espera a que termine el registro. */
+      registraServiceWorker();
+      /** Registra un service worker para instalar la aplicación en el
+       * caché del navegador. La palabra reservada async indica que no espera
+       * a que termine y libera el registro de activación que lo llamó. */
+      async function registraServiceWorker() {
+        if ("serviceWorker" in navigator) {
+          try {
+            /* Registra el service worker y espera que termine. El service
+             * worker debe estar en la carpeta public. La palabra await indica
+             * que espera a que termine y solo puede usarse en una función
+             * async. */
+            const registro = await navigator.serviceWorker.register("sw.js");
+            // Registro correcto y se muestra en la consola.
+            console.log("Service Worker registrado.");
+            console.log(registro);
+          } catch (e) {
+            // Hubo un error en el registro.
+            muestraError(e);
+          }
+        }
+      }
+      /** Procesa una excepción y muestra un mensaje de error.
+       * @param {Error} e descripción del error. */
+      function muestraError(e) {
+        console.log(e);
+        alert(e.message);
+      }
+    </script>
+
+    <!-- Ícono para la página web. Debe ponerse en la raíz de la página. -->
+    <link rel="icon" sizes="32x32" href="favicon.ico">
+
+    <!-- Color de la barra de navegación de Chrome en dispositivos móviles. -->
+    <meta name="theme-color" content="#E4B0EB">
+
+    <!-- Configuración de la PWA: Chrome y Edge. -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Configuración para Web Clip en Safari. -->
+    <meta name="apple-mobile-web-app-title" content="daniiot">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="apple-touch-icon" href="img/icono-2048.png">
+    <link rel="apple-touch-icon" sizes="256x256" href="img/icono-256.png">
+    <link rel="apple-touch-icon" sizes="1024x1024" href="img/icono-1024.png">
+    <link rel="apple-touch-icon" sizes="2048x2048" href="img/icono-2048.png">
+
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+   <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet">
+    <script type="module" src="cmp/mi-footer.js"></script>
+    <link rel="stylesheet" href="css/estilos.css">
+
+    <!-- Carga el núcleo de Firebase. Actualiza los números de versión cuando
+    sea necesario. Hemos quitado el atributo defer que aparecía originalmente.
+    -->
+    <script src="/__/firebase/7.15.5/firebase-app.js"></script>
+    <!-- Solo incluye las características de Firebase que necesites.s -->
+    <script src="/__/firebase/7.15.5/firebase-auth.js"></script>
+    <script src="/__/firebase/7.15.5/firebase-firestore.js"></script>
+    <script src="/__/firebase/7.15.5/firebase-storage.js"></script>
+    <!-- Carga la configuración de tu proyecto en el servidor de Firebase. -->
+    <script src="/__/firebase/init.js"></script>
+
+  </head>
+
+   <script>
+      const firestore = firebase.firestore();
+      const ID_PROYECTO = "daniiot";
+
+      
+      const ENTIDAD_LUZ = "luz";
+      const ENTIDAD_INTENSIDAD = "intensidad";
+      const ID = "iot1";
+      const URL_LUZ = `https://firestore.googleapis.com/v1/projects/${
+        ID_PROYECTO}/databases/(default)/documents/${ENTIDAD_LUZ}/${ID}`;
+      const URL_INTENSIDAD = `https://firestore.googleapis.com/v1/projects/${
+        ID_PROYECTO}/databases/(default)/documents/${ENTIDAD_INTENSIDAD}/${
+        ID}`;
+      const URL_AGREGA = `https://firestore.googleapis.com/v1/projects/${
+        ID_PROYECTO}/databases/(default)/documents/${ENTIDAD_INTENSIDAD}/${
+        ID}/LECTURAS`;
+
+      const ENTIDAD_ALARMA="alarma";
+      const ID2="iot2";
+      const URL_ALARMA = `https://firestore.googleapis.com/v1/projects/${
+        ID_PROYECTO}/databases/(default)/documents/${ENTIDAD_ALARMA}/${ID2}`;
+
+      const ENTIDAD_SEGURO="seguro";
+      const ID3="iot3";
+      const URL_SEGURO = `https://firestore.googleapis.com/v1/projects/${
+        ID_PROYECTO}/databases/(default)/documents/${ENTIDAD_SEGURO}/${ID3}`;
+
+
+      const INTERVALO_EN_MILIS = 1000;
+      const METODO_ADD = "POST";
+      const METODO_CHANGE = "PATCH";
+      const HEADERS_JSON = {
+        "Content-Type": "application/json"
+      };
+      function procesaError(e) {
+        console.log(e);
+        alert(e.message);
+      }
+    </script>
+  </head>
+  <body>
+    <header>
+    <h1 class="head">Control Para el Hogar</h1>
+  </header>
+  <table>
+     <tr><div id=iot>
+        
+         <td> <p><label class="slidecontainer">
+            <h2 class="tipo">Intensidad: </h2></td>
+              <td colspan="3" valign="bottom"><input type="range" id="iotIntensidad" min="0" max="10" class="slider" onchange="intensidadModificada();"></td>
+          
+          <td></td>  </label>
+        </p>
+        </tr>
+        <tr><td><label><h2 class="control">Luces: </h2></td>
+          <td><h2 class="output"><output id="iotLuz" class="output"></output></h2></label></td></tr>
+        <output id="iotError"></output>
+      </div>
+      <script>
+        setInterval(actualizaIot, INTERVALO_EN_MILIS);
+        iniciaIntensidad();
+        async function actualizaIot() {
+          try {
+            const resp = await fetch(URL_LUZ);
+            if (resp.ok) {
+              const json = await resp.json();
+              iotLuz.value = json.fields.valor && json.fields.valor.booleanValue ?
+                "Encendidas" : "Apagadas";
+            } else {
+              iotLuz.value = "Apagadas";
+              console.log(resp.statusText);
+            }
+          } catch (e) {
+            console.log(e);
+            iotError.value = e.message;
+          }
+        }
+        async function iniciaIntensidad() {
+          try {
+            const resp = await fetch(URL_INTENSIDAD);
+            if (resp.ok) {
+              const json = await resp.json();
+              iotIntensidad.value =
+                json.fields.valor && json.fields.valor.integerValue ?
+                  json.fields.valor.integerValue : 0;
+            } else {
+              iotIntensidad.value = 0;
+              console.log(resp.statusText);
+            }
+          } catch (e) {
+            console.log(e);
+            iotError.value = e.message;
+          }
+        }
+        async function intensidadModificada() {
+          try {
+            var data = {
+              fields: { valor: { integerValue: iotIntensidad.value } }
+            };
+            const resp = await fetch(URL_INTENSIDAD, {
+              method: METODO_CHANGE,
+              body: JSON.stringify(data),
+              headers: HEADERS_JSON,
+            });
+            if (!resp.ok) {
+              throw new Error(resp.message);
+            }
+            const resp2 = await fetch(URL_AGREGA, {
+              method: METODO_CHANGE,
+              body: JSON.stringify(data),
+              headers: HEADERS_JSON,
+            });
+            if (!resp2.ok) {
+              throw new Error(resp2.message);
+            }
+          } catch (e) {
+            console.log(e);
+            iotError.value = e.message;
+          }
+        }
+      </script>
+     <tr> <div id=mp>
+       <td><span class="material-icons md-light">flare</span></td>
+        <td>
+          <label>
+           Encender Luz<input id=mpLuz type="checkbox" onclick="luzModificada();">
+          </label></td>
+      </div></tr>
+      <script>
+        actualizaMp();
+        async function actualizaMp() {
+          firestore.collection(ENTIDAD_INTENSIDAD).doc(ID).onSnapshot(
+            doc => {
+              if (doc.exists) {
+                mpIntensidad.value = doc.data().valor || 0;
+              } else {
+                mpIntensidad.value = 0;
+              }
+            },
+            e => {
+              procesaError(e);
+              // muestraLuz();
+            }
+          );
+          const docLuz = await firestore.collection(ENTIDAD_LUZ).doc(ID).get();
+          mpLuz.checked = docLuz.exists && Boolean(docLuz.data().valor);
+        }
+        async function luzModificada() {
+          try {
+            await firestore.collection(ENTIDAD_LUZ).doc(ID).set({
+              valor: mpLuz.checked
+            });
+          } catch (e) {
+            procesaError(e);
+          }
+        }
+      </script>
+  
+<tr><div id=iotLock>
+  <td><label><h2 class="control">Puertas: </h2></td>
+    <td><h2 class="output"><output id="iotSeguro" class="output"></output></h2></label></td>
+  <p><output id="iotLockError"></output></p>
+</div></tr>
+<script>
+  setInterval(actualizaIotLock, INTERVALO_EN_MILIS);
+  async function actualizaIotLock() {
+    try {
+      const resp = await fetch(URL_SEGURO);
+      if (resp.ok) {
+        const json = await resp.json();
+        iotSeguro.value = json.fields.valor && json.fields.valor.booleanValue ?
+          "Aseguradas" : "Sin Seguro";
+      } else {
+        iotSeguro.value = "Sin Seguro";
+        console.log(resp.statusText);
+      }
+    } catch (e) {
+      console.log(e);
+      iotLockError.value = e.message;
+    }
+  }
+</script>
+<tr><div id=mpLock>
+  <td><span class="material-icons md-light">lock</span></td> 
+  <td><label>
+      Poner Seguro<input id=mpSeguro type="checkbox" onclick="seguroModificado();">
+    </label></td>
+</div></tr>
+<script>
+  async function seguroModificado() {
+    try {
+      await firestore.collection(ENTIDAD_SEGURO).doc(ID3).set({
+        valor: mpSeguro.checked
+      });
+    } catch (e) {
+      procesaError(e);
+    }
+  }
+</script>
+<tr><div id=iotAlarm>
+  <td><label><h2 class="control">Alarma:</h2></td>
+    <td><h2 class="output"><output id="iotAlarma" class="output"></output></h2></label></td>
+  <td><output id="iotAlarmError"></output></td>
+</div></tr>
+<script>
+  setInterval(actualizaIotAlarm, INTERVALO_EN_MILIS);
+  async function actualizaIotAlarm() {
+    try {
+      const resp = await fetch(URL_ALARMA);
+      if (resp.ok) {
+        const json = await resp.json();
+        iotAlarma.value = json.fields.valor && json.fields.valor.booleanValue ?
+          "Encendida" : "Apagada";
+      } else {
+        iotAlarma.value = "Apagada";
+        console.log(resp.statusText);
+      }
+    } catch (e) {
+      console.log(e);
+      iotAlarmError.value = e.message;
+    }
+  }
+</script>
+<tr><div id=mpAlarm>
+   <td><span class="material-icons md-light">security</span></td>
+  <td><label>
+      Encender Alarma<input id=mpAlarma type="checkbox" onclick="alarmaModificada();">
+    </label></td> 
+</div></tr>
+<script>
+  async function alarmaModificada() {
+    try {
+      await firestore.collection(ENTIDAD_ALARMA).doc(ID2).set({
+        valor: mpAlarma.checked
+      });
+    } catch (e) {
+      procesaError(e);
+    }
+  }
+</script>
+</table>
+<script>
+  try {
+    let app = firebase.app();
+    let apis = ["auth", "firestore", "storage"]
+      .filter(api => typeof app[api] === "function");
+    
+  } catch (e) {
+    muestraError(e);
+  }
+</script>
+<mi-footer></mi-footer>
+  
+</body>
+</html>
